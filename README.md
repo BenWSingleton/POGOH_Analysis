@@ -1,2 +1,4 @@
 # POGOH_Analysis
-Analyzing POGOH usage data for fun
+
+TO DO
+- Add proper logging
