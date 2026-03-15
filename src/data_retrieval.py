@@ -41,7 +41,7 @@ def pull_data(month: str, year: int, verbose: bool = False) -> bool:
     if verbose: print(f"Saved {file} to {file_path}")
     return True
 
-def get_data(start_year: int = 2022, start_month: int = 5, verbose: bool = False):
+def get_data(start_year: int = 2022, start_month: int = 5, verbose: bool = False) -> list[str]:
     now = datetime.now()
     end_year = now.year
     end_month = now.month
@@ -61,6 +61,3 @@ def get_data(start_year: int = 2022, start_month: int = 5, verbose: bool = False
                     downloaded.append(f"{month_name}-{year}.xlsx")
 
     return downloaded
-
-if __name__ == "__main__":
-    get_data(verbose=True)

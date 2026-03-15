@@ -5,7 +5,7 @@ import pandas as pd
 path = os.getcwd() + "\\data\\POGOH\\raw data\\ridership data\\"
 files = os.listdir(path)
 
-neighborhoods = {"Pierce St & Summerlea St": "Shadyside",
+NEIGHBORHOODS: dict[str,str] = {"Pierce St & Summerlea St": "Shadyside",
                  "Eliza Furnace Trail & Swineburne St": "Hazelwood",
                  "Centre Ave & Addison St": "Middle Hill",
                  "Burns White Center at 3 Crossings": "Strip District",
@@ -66,7 +66,9 @@ neighborhoods = {"Pierce St & Summerlea St": "Shadyside",
                  "Forbes Ave at TCS Hall (CMU Campus)": "North Oakland",
                  "Wilkinsburg Park & Ride": "Wilkinsburg"}
 
-def calculate_distance(row):
+STATION_ALIASES: dict[str, list[str]] = {}
+
+def calculate_distance(row: pd.Series)  -> float:
     coords_1 = (row['Start Station Latitude'], row['Start Station Longitude'])
     coords_2 = (row['End Station Latitude'], row['End Station Longitude'])
     return distance.distance(coords_1, coords_2).km
@@ -77,7 +79,7 @@ def replace_station_name(data, old, new):
     data['End Station Name'] = data['End Station Name'].replace(old, new)
     return data
 
-def replace_station_names(data):
+def replace_station_names(data: pd.DataFrame) -> pd.DataFrame:
     data = data.copy()
     data = replace_station_name(data, "Burns white at 3 crossings", "Burns White Center at 3 Crossings")
     data = replace_station_name(data, "S 27th St & Sidney St. (Southside Works", "S 27th St & Sidney St. (Southside Works)")
@@ -105,31 +107,29 @@ def load_data(file_path="\\data\\POGOH\\raw data\\ridership data\\"):
 
     return data
 
-def coercing_types(df: pd.DataFrame):
+def coercing_types(df: pd.DataFrame) -> pd.DataFrame:
+    df['End Station Id']    = df['End Station Id'].fillna(0).astype("int64")
+    df['End Station Name']  = df['End Station Name'].fillna('None')
+    df['Closed Status'] = df['Closed Status'].fillna("None")
+    df['Start Date'] = pd.to_datetime(df['Start Date'], format='%Y-%m-%d %H:%M:%S')
+    df['End Date'] = pd.to_datetime(df['End Date']) 
 
+    return df
 
-    return 
 def process_data(verbose=False):
 
     if verbose: print("Loading data...")
     df = load_data()
     stations = pd.read_excel('./data/POGOH/raw data/station data/pogoh-station-locations-october-2023.xlsx')
 
-    df['End Station Id'] = df['End Station Id'].fillna(0)
-    df['End Station Id'] = df['End Station Id'].astype('int64')
-    df['End Station Name'] = df['End Station Name'].fillna('None')
+    if verbose: print("Coercing types")
+    df = coercing_types(df)
 
-    stations['Neighborhood'] = stations['Name'].map(neighborhoods)
+    stations['Neighborhood'] = stations['Name'].map(NEIGHBORHOODS)
 
     if verbose: print("Merging station data...")
     df = pd.merge(df, stations.drop(columns=['Name']).add_prefix('Start Station '), left_on='Start Station Id', right_on='Start Station Id', how='inner')
     df = pd.merge(df, stations.drop(columns=['Name']).add_prefix('End Station '), left_on='End Station Id', right_on='End Station Id', how='inner')
-
-    if verbose: print("Processing cleaning data...")
-    df['Start Date'] = pd.to_datetime(df['Start Date'])
-    df['End Date'] = pd.to_datetime(df['End Date']) 
-
-    df['Closed Status'] = df['Closed Status'].fillna("None")
 
     df['Trip Distance (km)'] = df.apply(calculate_distance, axis=1)
     df['Trip Time'] = df['End Date'] - df['Start Date']
@@ -139,4 +139,7 @@ def process_data(verbose=False):
     if verbose: print("Replacing station names...")
     df = replace_station_names(df)
 
-    return df
+    df.to_parquet('./data/POGOH/combined data/data.parquet', index=False)
+
+if __name__ == "__main__":
+    process_data(verbose=True)
