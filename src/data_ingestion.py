@@ -105,7 +105,12 @@ def load_data(file_path="\\data\\POGOH\\raw data\\ridership data\\"):
 
     return data
 
+def coercing_types(df: pd.DataFrame):
+
+
+    return 
 def process_data(verbose=False):
+
     if verbose: print("Loading data...")
     df = load_data()
     stations = pd.read_excel('./data/POGOH/raw data/station data/pogoh-station-locations-october-2023.xlsx')
