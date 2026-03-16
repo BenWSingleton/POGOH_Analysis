@@ -1,6 +1,8 @@
 import os
 from geopy import distance
 import pandas as pd
+from tqdm import tqdm
+from config import Config
 
 path = os.getcwd() + "\\data\\POGOH\\raw data\\ridership data\\"
 files = os.listdir(path)
@@ -73,7 +75,7 @@ def calculate_distance(row: pd.Series)  -> float:
     coords_2 = (row['End Station Latitude'], row['End Station Longitude'])
     return distance.distance(coords_1, coords_2).km
 
-def replace_station_name(data, old, new):
+def replace_station_name(data: pd.DataFrame, old: str, new: str) -> pd.DataFrame:
     data = data.copy()
     data['Start Station Name'] = data['Start Station Name'].replace(old, new)
     data['End Station Name'] = data['End Station Name'].replace(old, new)
@@ -96,12 +98,12 @@ def replace_station_names(data: pd.DataFrame) -> pd.DataFrame:
     data = replace_station_name(data, "Forbes Ave & Grant St", "Ross St & Fourth Ave")
     return data
 
-def load_data(file_path="\\data\\POGOH\\raw data\\ridership data\\"):
+def load_data(file_path:str="\\data\\POGOH\\raw data\\ridership data\\") -> pd.DataFrame:
     path = os.getcwd() + file_path
     files = os.listdir(path)
     data = pd.DataFrame()
 
-    for f in files:
+    for f in tqdm(files, desc='Loading monthly ridership data'):
         month = pd.read_excel('./data/POGOH/raw data/ridership data/' + f)
         data = pd.concat([data, month])
 
@@ -117,7 +119,6 @@ def coercing_types(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def process_data(verbose=False):
-
     if verbose: print("Loading data...")
     df = load_data()
     stations = pd.read_excel('./data/POGOH/raw data/station data/pogoh-station-locations-october-2023.xlsx')
@@ -125,21 +126,23 @@ def process_data(verbose=False):
     if verbose: print("Coercing types")
     df = coercing_types(df)
 
-    stations['Neighborhood'] = stations['Name'].map(NEIGHBORHOODS)
-
     if verbose: print("Merging station data...")
     df = pd.merge(df, stations.drop(columns=['Name']).add_prefix('Start Station '), left_on='Start Station Id', right_on='Start Station Id', how='inner')
     df = pd.merge(df, stations.drop(columns=['Name']).add_prefix('End Station '), left_on='End Station Id', right_on='End Station Id', how='inner')
 
+    if verbose: print('Calculating trip data...')
     df['Trip Distance (km)'] = df.apply(calculate_distance, axis=1)
     df['Trip Time'] = df['End Date'] - df['Start Date']
 
-    df = df[(df['Start Station Name'] != "Test-STATION") & (df['End Station Name'] != "Test-STATION")]
-
     if verbose: print("Replacing station names...")
     df = replace_station_names(df)
+    df = df[(df['Start Station Name'] != "Test-STATION") & (df['End Station Name'] != "Test-STATION")]
+    stations['Neighborhood'] = stations['Name'].map(NEIGHBORHOODS)
 
+    if verbose: print("Writing data...")
     df.to_parquet('./data/POGOH/combined data/data.parquet', index=False)
+
+    return 
 
 if __name__ == "__main__":
     process_data(verbose=True)
