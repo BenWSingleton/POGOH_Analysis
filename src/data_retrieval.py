@@ -61,3 +61,6 @@ def get_data(start_year: int = 2022, start_month: int = 5, verbose: bool = False
                     downloaded.append(f"{month_name}-{year}.xlsx")
 
     return downloaded
+
+if __name__ == "__main__":
+    get_data(verbose=True)

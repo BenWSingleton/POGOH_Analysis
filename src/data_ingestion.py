@@ -2,7 +2,8 @@ import os
 from geopy import distance
 import pandas as pd
 from tqdm import tqdm
-from config import Config
+import config
+from pathlib import Path
 
 path = os.getcwd() + "\\data\\POGOH\\raw data\\ridership data\\"
 files = os.listdir(path)
@@ -98,30 +99,25 @@ def replace_station_names(data: pd.DataFrame) -> pd.DataFrame:
     data = replace_station_name(data, "Forbes Ave & Grant St", "Ross St & Fourth Ave")
     return data
 
-def load_data(file_path:str="\\data\\POGOH\\raw data\\ridership data\\") -> pd.DataFrame:
-    path = os.getcwd() + file_path
-    files = os.listdir(path)
-    data = pd.DataFrame()
-
-    for f in tqdm(files, desc='Loading monthly ridership data'):
-        month = pd.read_excel('./data/POGOH/raw data/ridership data/' + f)
-        data = pd.concat([data, month])
-
-    return data
+def load_data(file_path: Path) -> pd.DataFrame:
+    frames = [pd.read_excel(f) for f in file_path.glob("*.xlsx")]
+    return pd.concat(frames, ignore_index=True)
 
 def coercing_types(df: pd.DataFrame) -> pd.DataFrame:
     df['End Station Id']    = df['End Station Id'].fillna(0).astype("int64")
     df['End Station Name']  = df['End Station Name'].fillna('None')
     df['Closed Status'] = df['Closed Status'].fillna("None")
-    df['Start Date'] = pd.to_datetime(df['Start Date'], format='%Y-%m-%d %H:%M:%S')
-    df['End Date'] = pd.to_datetime(df['End Date']) 
+    df['Start Date'] = pd.to_datetime(df['Start Date'], format='%m/%d/%Y %I:%M:%S %p')
+    df['End Date'] = pd.to_datetime(df['End Date'], format='%m/%d/%Y %I:%M:%S %p') 
 
     return df
 
 def process_data(verbose=False):
+    cfg = config.Config()
+
     if verbose: print("Loading data...")
-    df = load_data()
-    stations = pd.read_excel('./data/POGOH/raw data/station data/pogoh-station-locations-october-2023.xlsx')
+    stations = pd.read_excel(cfg.station_file)
+    df = load_data(cfg.ridership_dir)
 
     if verbose: print("Coercing types")
     df = coercing_types(df)
@@ -134,7 +130,7 @@ def process_data(verbose=False):
     df['Trip Distance (km)'] = df.apply(calculate_distance, axis=1)
     df['Trip Time'] = df['End Date'] - df['Start Date']
 
-    if verbose: print("Replacing station names...")
+    if verbose: print("Cleaning station names...")
     df = replace_station_names(df)
     df = df[(df['Start Station Name'] != "Test-STATION") & (df['End Station Name'] != "Test-STATION")]
     stations['Neighborhood'] = stations['Name'].map(NEIGHBORHOODS)
@@ -142,7 +138,4 @@ def process_data(verbose=False):
     if verbose: print("Writing data...")
     df.to_parquet('./data/POGOH/combined data/data.parquet', index=False)
 
-    return 
-
-if __name__ == "__main__":
-    process_data(verbose=True)
+    return True
