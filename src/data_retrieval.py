@@ -1,16 +1,20 @@
 import requests
+from bs4 import BeautifulSoup
 import pandas as pd
 from io import BytesIO
-from datetime import datetime
-import calendar
-import os
+from urllib.parse import urlparse
 from pathlib import Path
 
-url = 'https://data.wprdc.org/dataset/f376ccbc-c851-4b58-8b59-5dd9edc736ee/resource/a27865cf-5621-43f9-9ee9-06f65ba9d544/download/'
-path = os.getcwd() + "\\data\\POGOH\\raw data\\ridership data\\"
+ROOT_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = ROOT_DIR / "data" / "pogoh" / "raw_data" / "ridership_data"
 
-def check_if_month_data_exists(month: str, year: int, verbose: bool = False) -> bool: 
-    file_path = Path(path) / f"{month}-{year}.xlsx"
+URL = 'https://data.wprdc.org/dataset/pogoh-trip-data'
+
+def check_if_month_data_exists(file_name : str, 
+                               target_dir, 
+                               verbose=True
+                               ) -> bool: 
+    file_path = target_dir / file_name
 
     exists = file_path.exists()
 
@@ -20,47 +24,48 @@ def check_if_month_data_exists(month: str, year: int, verbose: bool = False) -> 
     
     return exists
 
-def pull_data(month: str, year: int, verbose: bool = False) -> bool:
-    file = f"{month}-{year}.xlsx"
-    month_url = f"{url}/{file}"
-    file_path = Path(path) / file
+def pull_data(full_link: str, 
+              file_name: str, 
+              output_dir: Path, 
+              verbose: bool = False
+              ) -> bool:
+    file_path = output_dir / file_name
 
     try:
-        response = requests.get(month_url)
+        response = requests.get(full_link)
         response.raise_for_status()
     except requests.exceptions.HTTPError as e:
-        if verbose: print(f"Failed to retrieve {file} — {e}")
+        if verbose: print(f"Failed to retrieve {file_name} — {e}")
         return False
     except requests.exceptions.RequestException as e:
-        if verbose: print(f"Network error when retrieving {file} — {e}")
+        if verbose: print(f"Network error when retrieving {file_name} — {e}")
         return False
 
-    if verbose: print(f"Retrieved {file}")
+    if verbose: print(f"Retrieved {file_name}")
+
     df = pd.read_excel(BytesIO(response.content))
     df.to_excel(file_path, index=False)
-    if verbose: print(f"Saved {file} to {file_path}")
+
+    if verbose: print(f"Saved {file_name} to {file_path}")
+
     return True
 
-def get_data(start_year: int = 2022, start_month: int = 5, verbose: bool = False) -> list[str]:
-    now = datetime.now()
-    end_year = now.year
-    end_month = now.month
-
+def get_data(verbose: bool = False) -> list[str]:
+    site_response = requests.get(URL)
+    html = site_response.text
+    soup = BeautifulSoup(html, 'html.parser')
+    links = soup.find_all("a", class_="resource-url-analytics")
+    
     downloaded = []
 
-    for year in range(start_year, end_year + 1):
-        month_start = start_month if year == start_year else 1
-        month_end = end_month if year == end_year else 12
+    for link in links:
+        full_link = str(link.get("href"))
+        file_name = Path(urlparse(full_link).path).name
 
-        for month in range(month_start, month_end + 1):
-            month_name = calendar.month_name[month].lower()
-            month_exists = check_if_month_data_exists(month_name, year, verbose)
-            if not month_exists:
-                success = pull_data(month_name, year, verbose)
-                if success:
-                    downloaded.append(f"{month_name}-{year}.xlsx")
-
+        month_exists = check_if_month_data_exists(file_name, DATA_DIR, verbose)
+        if not month_exists:
+            success = pull_data(full_link, file_name, DATA_DIR, verbose)
+            if success:
+                downloaded.append(f"{file_name}")
+    
     return downloaded
-
-if __name__ == "__main__":
-    get_data(verbose=True)

@@ -1,12 +1,18 @@
 import os
+import sys
+from pathlib import Path
 from geopy import distance
 import pandas as pd
 from tqdm import tqdm
 import config
-from pathlib import Path
 
-path = os.getcwd() + "\\data\\POGOH\\raw data\\ridership data\\"
-files = os.listdir(path)
+ROOT_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = ROOT_DIR / "data" / "POGOH" / "raw_data" / "ridership_data"
+
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+files = os.listdir(DATA_DIR)
 
 NEIGHBORHOODS: dict[str,str] = {"Pierce St & Summerlea St": "Shadyside",
                  "Eliza Furnace Trail & Swineburne St": "Hazelwood",
@@ -139,3 +145,6 @@ def process_data(verbose=False):
     df.to_parquet('./data/POGOH/combined data/data.parquet', index=False)
 
     return True
+
+if __name__ == "__main__":
+    process_data(verbose=True)
