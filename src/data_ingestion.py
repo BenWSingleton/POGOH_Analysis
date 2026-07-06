@@ -4,15 +4,7 @@ from pathlib import Path
 from geopy import distance
 import pandas as pd
 from tqdm import tqdm
-import config
-
-ROOT_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = ROOT_DIR / "data" / "POGOH" / "raw_data" / "ridership_data"
-
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
-
-files = os.listdir(DATA_DIR)
+from config import Config
 
 NEIGHBORHOODS: dict[str,str] = {"Pierce St & Summerlea St": "Shadyside",
                  "Eliza Furnace Trail & Swineburne St": "Hazelwood",
@@ -109,23 +101,28 @@ def load_data(file_path: Path) -> pd.DataFrame:
     frames = [pd.read_excel(f) for f in file_path.glob("*.xlsx")]
     return pd.concat(frames, ignore_index=True)
 
+def parse_dates(series: pd.Series) -> pd.Series:
+    return pd.to_datetime(series, format='%m/%d/%Y %I:%M:%S %p', errors='coerce') \
+        .fillna(pd.to_datetime(series, format='%a, %b %d, %Y, %I:%M %p', errors='coerce'))
+
 def coercing_types(df: pd.DataFrame) -> pd.DataFrame:
     df['End Station Id']    = df['End Station Id'].fillna(0).astype("int64")
     df['End Station Name']  = df['End Station Name'].fillna('None')
     df['Closed Status'] = df['Closed Status'].fillna("None")
-    df['Start Date'] = pd.to_datetime(df['Start Date'], format='%m/%d/%Y %I:%M:%S %p')
-    df['End Date'] = pd.to_datetime(df['End Date'], format='%m/%d/%Y %I:%M:%S %p') 
+    df['Start Date'] = parse_dates(df['Start Date'])
+    df['End Date'] = parse_dates(df['End Date'])
 
     return df
 
 def process_data(verbose=False):
-    cfg = config.Config()
+    cfg = Config()
 
     if verbose: print("Loading data...")
     stations = pd.read_excel(cfg.station_file)
     df = load_data(cfg.ridership_dir)
 
     if verbose: print("Coercing types")
+    df=df[df['End Station Id']!='primator@mestotlmace.sk']
     df = coercing_types(df)
 
     if verbose: print("Merging station data...")
@@ -142,9 +139,9 @@ def process_data(verbose=False):
     stations['Neighborhood'] = stations['Name'].map(NEIGHBORHOODS)
 
     if verbose: print("Writing data...")
-    df.to_parquet('./data/POGOH/combined data/data.parquet', index=False)
+    df.to_parquet('./data/POGOH/combined_data/data.parquet', index=False)
 
     return True
 
 if __name__ == "__main__":
-    process_data(verbose=True)
+    print(Config.base_dir)

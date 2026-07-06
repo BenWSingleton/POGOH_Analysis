@@ -4,11 +4,7 @@ import pandas as pd
 from io import BytesIO
 from urllib.parse import urlparse
 from pathlib import Path
-
-ROOT_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = ROOT_DIR / "data" / "pogoh" / "raw_data" / "ridership_data"
-
-URL = 'https://data.wprdc.org/dataset/pogoh-trip-data'
+from config import Config
 
 def check_if_month_data_exists(file_name : str, 
                                target_dir, 
@@ -24,7 +20,7 @@ def check_if_month_data_exists(file_name : str,
     
     return exists
 
-def pull_data(full_link: str, 
+def pull_ridership_data(full_link: str, 
               file_name: str, 
               output_dir: Path, 
               verbose: bool = False
@@ -50,22 +46,54 @@ def pull_data(full_link: str,
 
     return True
 
-def get_data(verbose: bool = False) -> list[str]:
-    site_response = requests.get(URL)
+def scrape_links_from_page(url):
+    site_response = requests.get(url)
     html = site_response.text
     soup = BeautifulSoup(html, 'html.parser')
     links = soup.find_all("a", class_="resource-url-analytics")
-    
+    return links
+
+def get_latest_station_data(station_data_url: str,
+                            station_dir,
+                            verbose: bool = False):
+    links = scrape_links_from_page(station_data_url)
+    latest = ""
+    # TO DO: scan all station files and pull only the latest one
+
+    return links
+
+def get_latest_ridership_data(trip_data_url: str, 
+                              ridership_dir: Path,
+                              verbose: bool = False) -> list[str]:
     downloaded = []
 
+    links = scrape_links_from_page(trip_data_url)
     for link in links:
         full_link = str(link.get("href"))
         file_name = Path(urlparse(full_link).path).name
 
-        month_exists = check_if_month_data_exists(file_name, DATA_DIR, verbose)
+        month_exists = check_if_month_data_exists(file_name, ridership_dir, verbose)
         if not month_exists:
-            success = pull_data(full_link, file_name, DATA_DIR, verbose)
+            success = pull_ridership_data(full_link, file_name, ridership_dir, verbose)
             if success:
                 downloaded.append(f"{file_name}")
     
     return downloaded
+
+def get_data(verbose: bool = False) -> list[str]:
+    cfg = Config()
+
+    # TO DO: rework to be a dict w/ downloaded and existing files
+    downloaded = get_latest_ridership_data(cfg.trip_data_url,
+                                           cfg.ridership_dir,
+                                           verbose)
+
+    get_latest_station_data(cfg.station_data_url,
+                                          cfg.station_dir,
+                                          verbose)
+
+    return downloaded
+
+if __name__ == "__main__":
+    cfg = Config()
+    print(get_latest_station_data(cfg.station_data_url, cfg.station_dir,True))
